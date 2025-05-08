@@ -2,6 +2,7 @@
 
 import nltk
 import sys
+import os
 import re
 import argparse
 import logging
@@ -12,21 +13,34 @@ from tqdm import tqdm
 import numpy as np
 from datetime import datetime
 
-# Configure logging
+# Get the directory where the current .py file is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Set up logging to store log file in the same directory as the .py file
+LOG_FILE = os.path.join(SCRIPT_DIR, 'Restaurant_Reviews.log')
 logging.basicConfig(
-    filename=f'sentiment_analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
+    filename=LOG_FILE,
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s %(levelname)s: %(message)s'
 )
 
+def log_and_print(message, level='info'):
+    print(message)
+    if level == 'info':
+        logging.info(message)
+    elif level == 'error':
+        logging.error(message)
+    elif level == 'warning':
+        logging.warning(message)
+
 # Print Python version and compatibility status
-print(f"Running on Python [ {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} ]")
+log_and_print(f"Running on Python [ {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} ]")
 if sys.version_info >= (3, 12):
     print("     - This version is compatible and supported for the execution of the code.")
 else:
-    print("Error: ")
-    print(f"    - The version [ {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} ] is not compatible and not supported for the execution of the code.")
-    print("    - This code requires Python [ 3.12 ] or later versions.")
+    log_and_print("Error: ")
+    log_and_print(f"    - The version [ {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} ] is not compatible and not supported for the execution of the code.")
+    log_and_print("    - This code requires Python [ 3.12 ] or later versions.")
     sys.exit(1)
 
 class Restaurant:
@@ -76,27 +90,25 @@ class Restaurant:
                 raise ValueError("Input file must contain 'Review' column")
             return data
         except FileNotFoundError:
-            logging.error(f"Data file not found: {self.data_file}")
-            print(f"Error: Data file {self.data_file} not found")
+            log_and_print(f"Data file not found: {self.data_file}")
             sys.exit(1)
         except Exception as e:
-            logging.error(f"Error loading data: {str(e)}")
-            print(f"Error loading data: {str(e)}")
+            log_and_print(f"Error loading data: {str(e)}")
             sys.exit(1)
 
     def feedback(self):
         """Process reviews and analyze sentiments."""
-        print(f"{self.name}: Hi! I am Restaurant Owner. How can I help you?")
+        log_and_print(f"{self.name}: Hi! I am Restaurant Owner. How can I help you?")
         
         data = self.load_data()
         self.input_iterator = iter(data['Review'])
         
         for review in tqdm(self.input_iterator, total=len(data), desc="Processing reviews"):
             try:
-                print("Customer:", review)
+                log_and_print("Customer:", review)
                 
                 if review.lower() in self.greetings:
-                    print(f"{self.name}: Hello! How can I assist you?")
+                    log_and_print(f"{self.name}: Hello! How can I assist you?")
                     continue
 
                 sentiment, polarity = self.get_sentiment(review)
@@ -107,28 +119,26 @@ class Restaurant:
                     'polarity': polarity
                 })
                 
-                print(f"Prediction: {sentiment} (Polarity: {polarity:.3f})")
+                log_and_print(f"Prediction: {sentiment} (Polarity: {polarity:.3f})")
                 logging.info(f"Review: {review[:50]}... | Sentiment: {sentiment} | Polarity: {polarity:.3f}")
                 
             except Exception as e:
-                logging.error(f"Error processing review: {str(e)}")
-                print(f"Error processing review: {str(e)}")
+                log_and_print(f"Error processing review: {str(e)}")
                 continue
 
-        print(f"{self.name}: Goodbye!")
+        log_and_print(f"{self.name}: Goodbye!")
         self.save_results()
 
     def save_results(self):
         """Save analysis results to CSV."""
         try:
             results_df = pd.DataFrame(self.processed_reviews)
-            output_file = f'sentiment_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            LOG_FILE = os.path.join(SCRIPT_DIR, f'sentiment_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
+            output_file = LOG_FILE
             results_df.to_csv(output_file, index=False)
-            logging.info(f"Results saved to {output_file}")
-            print(f"Results saved to {output_file}")
+            log_and_print(f"Results saved to {output_file}")
         except Exception as e:
-            logging.error(f"Error saving results: {str(e)}")
-            print(f"Error saving results: {str(e)}")
+            log_and_print(f"Error saving results: {str(e)}")
 
     def plot_sentiment_percentages(self):
         """Plot sentiment distribution as a pie chart."""
@@ -143,34 +153,32 @@ class Restaurant:
                     autopct='%1.1f%%', shadow=True, startangle=140)
             plt.axis('equal')
             plt.title("Sentiment Analysis of Restaurant Reviews")
-            plt.savefig('sentiment_pie_chart.png')
+            plt.savefig(os.path.join(SCRIPT_DIR, 'sentiment_pie_chart.png'))
             plt.close()
             logging.info("Sentiment pie chart saved as sentiment_pie_chart.png")
         except Exception as e:
-            logging.error(f"Error plotting sentiment chart: {str(e)}")
-            print(f"Error plotting sentiment chart: {str(e)}")
+            log_and_print(f"Error plotting sentiment chart: {str(e)}")
 
     def print_summary(self):
         """Print statistical summary of sentiment analysis."""
         try:
             total_reviews = sum(self.sentiment_counts.values())
-            print("\nSentiment Analysis Summary:")
-            print(f"Total Reviews: {total_reviews}")
+            log_and_print("\nSentiment Analysis Summary:")
+            log_and_print(f"Total Reviews: {total_reviews}")
             for sentiment, count in self.sentiment_counts.items():
                 percentage = (count / total_reviews * 100) if total_reviews > 0 else 0
-                print(f"{sentiment}: {count} reviews ({percentage:.1f}%)")
+                log_and_print(f"{sentiment}: {count} reviews ({percentage:.1f}%)")
             
             if self.sentiment_scores:
-                print(f"\nPolarity Statistics:")
-                print(f"Average Polarity: {np.mean(self.sentiment_scores):.3f}")
-                print(f"Min Polarity: {np.min(self.sentiment_scores):.3f}")
-                print(f"Max Polarity: {np.max(self.sentiment_scores):.3f}")
-                print(f"Std Dev: {np.std(self.sentiment_scores):.3f}")
+                log_and_print(f"\nPolarity Statistics:")
+                log_and_print(f"Average Polarity: {np.mean(self.sentiment_scores):.3f}")
+                log_and_print(f"Min Polarity: {np.min(self.sentiment_scores):.3f}")
+                log_and_print(f"Max Polarity: {np.max(self.sentiment_scores):.3f}")
+                log_and_print(f"Std Dev: {np.std(self.sentiment_scores):.3f}")
             
             logging.info("Summary statistics generated")
         except Exception as e:
-            logging.error(f"Error generating summary: {str(e)}")
-            print(f"Error generating summary: {str(e)}")
+            log_and_print(f"Error generating summary: {str(e)}")
 
 def parse_arguments():
     """Parse command-line arguments."""
@@ -187,6 +195,5 @@ if __name__ == "__main__":
         restaurant.plot_sentiment_percentages()
         restaurant.print_summary()
     except Exception as e:
-        logging.error(f"Fatal error in main execution: {str(e)}")
-        print(f"Fatal error: {str(e)}")
+        log_and_print(f"Fatal error in main execution: {str(e)}")
         sys.exit(1)
